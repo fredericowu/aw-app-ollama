@@ -1,0 +1,144 @@
+{
+  "type": "object",
+  "properties": {
+    "default_model": {
+      "type": "string",
+      "default": "",
+      "title": "Default model",
+      "description": "Optional local model name (for example smollm2:135m). Never downloads a model. Overrides the WebUI global default; saved chat choices still win. Pull explicitly in Open WebUI. Applied on save.",
+      "x-env": "AW_OLLAMA_DEFAULT_MODEL",
+      "maxLength": 128,
+      "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]*(?:/[A-Za-z0-9][A-Za-z0-9._-]*)*(?::[A-Za-z0-9][A-Za-z0-9._-]*)?)?$"
+    },
+    "accelerator": {
+      "type": "string",
+      "default": "auto",
+      "title": "Accelerator",
+      "description": "Auto uses devices only if the host grants them; CPU fallback is expected without a grant. Effective use is reported only while a model is loaded. GPU host delivery prerequisite is not yet shipped.",
+      "x-env": "AW_OLLAMA_ACCELERATOR",
+      "enum": [
+        "auto",
+        "cpu"
+      ]
+    },
+    "context_length": {
+      "type": "integer",
+      "default": 4096,
+      "title": "Default context length",
+      "description": "Applied when saved; affected containers restart.",
+      "x-env": "OLLAMA_CONTEXT_LENGTH",
+      "minimum": 512,
+      "maximum": 32768
+    },
+    "keep_alive": {
+      "type": "string",
+      "default": "5m",
+      "title": "Model keep-alive",
+      "description": "0 unloads after requests; otherwise 1\u201399 seconds or minutes. Save restarts Ollama.",
+      "x-env": "OLLAMA_KEEP_ALIVE",
+      "pattern": "^(?:0|[1-9][0-9]?[sm]|[1-9]m)$",
+      "maxLength": 4
+    },
+    "num_parallel": {
+      "type": "integer",
+      "default": 1,
+      "title": "Parallel requests",
+      "description": "Applied when saved; affected containers restart.",
+      "x-env": "OLLAMA_NUM_PARALLEL",
+      "minimum": 1,
+      "maximum": 4
+    },
+    "max_loaded_models": {
+      "type": "integer",
+      "default": 1,
+      "title": "Maximum loaded models",
+      "description": "Applied when saved; affected containers restart.",
+      "x-env": "OLLAMA_MAX_LOADED_MODELS",
+      "minimum": 1,
+      "maximum": 2
+    },
+    "max_queue": {
+      "type": "integer",
+      "default": 32,
+      "title": "Maximum queued requests",
+      "description": "Applied when saved; affected containers restart.",
+      "x-env": "OLLAMA_MAX_QUEUE",
+      "minimum": 1,
+      "maximum": 128
+    },
+    "load_timeout": {
+      "type": "string",
+      "default": "5m",
+      "title": "Model load timeout",
+      "description": "Applied when saved; affected containers restart.",
+      "x-env": "OLLAMA_LOAD_TIMEOUT",
+      "enum": [
+        "1m",
+        "5m",
+        "10m",
+        "15m"
+      ]
+    },
+    "flash_attention": {
+      "type": "boolean",
+      "default": false,
+      "title": "Flash attention",
+      "description": "Applied when saved; affected containers restart.",
+      "x-env": "OLLAMA_FLASH_ATTENTION"
+    },
+    "kv_cache_type": {
+      "type": "string",
+      "default": "f16",
+      "title": "KV cache type",
+      "description": "Quantized cache requires flash attention and supported hardware. Use f16 on CPU. Save restarts Ollama.",
+      "x-env": "OLLAMA_KV_CACHE_TYPE",
+      "enum": [
+        "f16",
+        "q8_0",
+        "q4_0"
+      ]
+    },
+    "no_cloud": {
+      "type": "boolean",
+      "default": true,
+      "title": "Disable Ollama cloud features",
+      "description": "Applied when saved; affected containers restart.",
+      "x-env": "OLLAMA_NO_CLOUD"
+    }
+  },
+  "required": [
+    "default_model",
+    "accelerator",
+    "context_length",
+    "keep_alive",
+    "num_parallel",
+    "max_loaded_models",
+    "max_queue",
+    "load_timeout",
+    "flash_attention",
+    "kv_cache_type",
+    "no_cloud"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kv_cache_type": {
+            "enum": [
+              "q8_0",
+              "q4_0"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "flash_attention": {
+            "const": true
+          }
+        }
+      }
+    }
+  ]
+}
