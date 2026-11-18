@@ -35,9 +35,3 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.image.outputs.ref }}
-  release:
-    needs: image
-    permissions:
-      contents: write
-    uses: tekflox/aw-marketplace/.github/workflows/app-release.yml@master
-    secrets: inherit

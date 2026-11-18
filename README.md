@@ -44,8 +44,12 @@ The selected model must already be pulled and accessible to the WebUI user.
   Per-request WebUI overrides can increase memory requirements. Large models
   may exceed the memory limit; choose a smaller model or change host resources.
 * Auto accelerator is optional: no GPU grant never blocks installation.
-  CPU mode masks CUDA/ROCm/Vulkan device selection. This official image targets
-  CPU and NVIDIA; AMD/DRM/Vulkan support is not claimed in v1.
+  CPU mode masks CUDA/ROCm/Vulkan device selection. CPU is the supported
+  workspace configuration for this release. Workspace GPU grants expose DRM
+  render nodes, `/dev/kfd`, and `keep-groups`. Ollama's NVIDIA Docker path
+  requires the NVIDIA Container Toolkit and `--gpus` device injection.
+  AMD/DRM offload with the pinned image is unverified on this workspace.
+  See the [Ollama Docker documentation](https://docs.ollama.com/docker).
 * Status derives effective offload from Ollama `/api/ps` `size_vram`:
   GPU means at least one loaded model has offloaded memory (possibly partial).
   Idle/unknown never means GPU success or CPU fallback. Observe during inference.
@@ -79,18 +83,34 @@ Model inventory failures are separately visible and do not claim installed state
 
 ## Delivery and prerequisites
 
-PR-first: `.github/workflows/test.yml` runs **all `tests/`**, lint, canonical
-marketplace manifest validation and a real container child/health smoke test.
-The shared code-review workflow reviews before merging. After merge,
-`release.yml` builds amd64+arm64 images **before** calling marketplace release,
-which validates/tests again and opens the catalog sync PR. Do not dispatch QA
-before merge and deployment. Before installing, verify anonymous image pull;
-a new GHCR package may require an organization owner to make it public.
+App releases are manually versioned through PRs. Set the manifest `version`
+and `runtime.image` tag to the new version in the app PR. Check that the Git
+tag, GHCR image tag, and catalog version are available before merging a release
+PR. Use `[skip release]` in the merge commit for changes that keep the published
+image tag. Reserve manual build dispatches for an unpublished version.
 
-App package versions are managed by marketplace release. Image versions are
-deliberate: **bump `runtime.image` for every container change**; release builds
-that exact tag. Never reuse a published image version. Upstream upgrades are
-explicit changes to Dockerfile and the sidecar pin with lifecycle revalidation.
+1. Merge through the required tests and code review. The post-merge
+   `release.yml` builds the manifest's image for Linux amd64 and arm64.
+2. Confirm the build succeeded for the exact merged commit. Record the image
+   index digest and verify both platforms and an anonymous pull. A first GHCR
+   publication may require a package owner to make it public.
+3. Push the app Git tag `v<version>` at that exact commit. Confirm the remote
+   tag resolves to the commit and its manifest points to the verified image.
+   Stop if an existing version, Git ref, or image points to different content,
+   or its provenance cannot be verified. Keep published tags intact.
+4. From a marketplace branch, use its official sync script with the manifest
+   from the merged app commit, then validate and open an `apps.json`-only PR.
+
+   ```sh
+   python scripts/sync_catalog_entry.py /path/to/merged/aw-app.json apps.json "v${VERSION}" \
+     --repo tekflox/aw-app-ollama --write
+   python tests/validate_apps.py
+   ```
+
+5. After the marketplace PR passes review and merges, verify the catalog
+   version and tag resolve to the same manifest and public image digest.
+   Before installing, verify pre-save config validation on the deployed
+   workspace. Dispatch QA only after merge and deployment.
 
 Two architecture prerequisites are pending:
 

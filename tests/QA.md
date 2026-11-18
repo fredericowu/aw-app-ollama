@@ -35,8 +35,9 @@ not a claim that a test has passed. QA runs only against merged/deployed work.
    survive. No new pull occurs before the second inference.
 9. No-GPU/unsupported host: optional grant does not fail install; requested auto
    is visible, idle before load and CPU during inference. After prerequisite 2,
-   on supported NVIDIA host, grant GPU and verify actual `size_vram > 0` during
-   inference. Repeat forced CPU. Do not mark GPU verified on this CPU-only host.
+   verify GPU only when the target and image support device injection for that
+   accelerator. Confirm actual `size_vram > 0` during inference and repeat in
+   forced CPU mode. Workspace GPU offload is unverified for this release.
 10. Verify status has no tokens/passwords/cookies and Ollama 11434 has no host
     publish. Unauthenticated WebUI API remains protected. Large-model failures
     should give actionable OOM/load guidance; do not promise CPU performance.
