@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>Ollama status</title>
+<style>body{font:14px system-ui;margin:16px;color:#ddd;background:#17191d}button,a{color:inherit}pre{white-space:pre-wrap}dt{font-weight:bold}dd{margin:0 0 12px}button{padding:6px 14px;background:#303540;border:1px solid #777;border-radius:4px}</style>
+<h2>Ollama</h2><p>Launch command: <code>ollama serve</code> (fixed).</p>
+<p>Use Open WebUI → Admin Settings → Models to pull, update, delete, or unload models.
+Downloads only start when you request them. Start with a small model on CPU; larger models need more RAM and disk.</p>
+<p>Save server controls below to recreate affected containers. Active requests will be interrupted.
+The workspace default overrides Open WebUI’s global default; individual chat choices remain available.</p>
+<button id="refresh">Refresh status</button><p id="message" role="status">Checking services…</p><dl id="status"></dl>
+<script>
+async function refresh(){
+  const message=document.getElementById('message');
+  try{
+    const url=location.pathname.replace(/\/panel$/, '/status');
+    const response=await fetch(url,{credentials:'same-origin',cache:'no-store'});
+    if(!response.ok)throw new Error('Status unavailable ('+response.status+'). Check app logs.');
+    const data=await response.json();
+    message.textContent=data.ok?'Ollama and Open WebUI are ready.':'Services are not ready. Check app logs, then restart.';
+    const values={Model:data.default_model||'None selected',Installed:data.installed===null?'Unknown':data.installed?'Yes':'No',
+      Accelerator:data.accelerator.requested+' requested / '+data.accelerator.effective+' effective',
+      Evidence:data.accelerator.evidence,Ollama:data.ollama.version||data.ollama.error,
+      'Open WebUI':data.webui.version+' / '+(data.webui.ready?'ready':'unavailable'),
+      'Loaded models':JSON.stringify(data.loaded),'Model status error':data.models_error||'None'};
+    const list=document.getElementById('status');list.replaceChildren();
+    for(const [key,value] of Object.entries(values)){const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=key;dd.textContent=String(value);list.append(dt,dd)}
+  }catch(error){message.textContent=error.message}
+}
+document.getElementById('refresh').onclick=refresh;refresh();
+</script></html>

@@ -1,0 +1,38 @@
+name: Test
+on:
+  pull_request:
+  push:
+    branches: [master]
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest tests/ -q
+      - run: ruff check .
+      - uses: actions/checkout@v4
+        with:
+          repository: tekflox/aw-marketplace
+          path: .marketplace
+      - run: python .marketplace/scripts/validate_manifest.py aw-app.json --schema .marketplace/schemas/aw-app.schema.json
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t ollama-test container
+      - name: Verify Ollama child and actionable unavailable WebUI health
+        run: |
+          docker run -d --name ollama-test -e AW_OLLAMA_ACCELERATOR=cpu ollama-test
+          trap 'docker logs ollama-test; docker rm -f ollama-test' EXIT
+          for attempt in $(seq 1 30); do
+            if docker exec ollama-test /app/venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:11434/api/version')"; then break; fi
+            sleep 2
+          done
+          docker exec ollama-test /app/venv/bin/python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:11434/api/version').read())"
+          docker exec ollama-test /app/venv/bin/python -c "import json,urllib.request; d=json.load(urllib.request.urlopen('http://127.0.0.1:8081/workspace/status')); assert not d['ok'] and d['webui']['error'] and d['ollama']['version']; assert not d['loaded']; print(d)"

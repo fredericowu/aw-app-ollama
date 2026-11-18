@@ -1,0 +1,15 @@
+{
+  "layout": "stack",
+  "regions": [
+    {
+      "id": "status",
+      "widgets": [
+        {
+          "type": "iframe",
+          "title": "Ollama status",
+          "src": "/api/apps/ollama/workspace/panel"
+        }
+      ]
+    }
+  ]
+}

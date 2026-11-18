@@ -1,0 +1,264 @@
+{
+  "manifest_version": 1,
+  "id": "ollama",
+  "name": "Ollama",
+  "version": "0.1.0",
+  "description": "Run local AI models and chat privately through Open WebUI, with persistent models and workspace runtime controls.",
+  "icon": "message-square",
+  "tier": "container",
+  "publisher": "TekFlox",
+  "requires_ui_refresh": true,
+  "resource_estimate": {
+    "cpu": "high",
+    "memory": "high",
+    "disk": "high"
+  },
+  "permissions": [
+    "containers:manage",
+    "fs:workspace-data",
+    "host:device-gpu"
+  ],
+  "runtime": {
+    "image": "ghcr.io/tekflox/aw-app-ollama:v0.1.0",
+    "port": 8081,
+    "resources": {
+      "cpus": 2,
+      "mem_mb": 4096
+    },
+    "host_power_optional": [
+      "gpu"
+    ],
+    "env": {
+      "AW_OLLAMA_DEFAULT_MODEL": "${config.default_model}",
+      "AW_OLLAMA_ACCELERATOR": "${config.accelerator}",
+      "OLLAMA_CONTEXT_LENGTH": "${config.context_length}",
+      "OLLAMA_KEEP_ALIVE": "${config.keep_alive}",
+      "OLLAMA_NUM_PARALLEL": "${config.num_parallel}",
+      "OLLAMA_MAX_LOADED_MODELS": "${config.max_loaded_models}",
+      "OLLAMA_MAX_QUEUE": "${config.max_queue}",
+      "OLLAMA_LOAD_TIMEOUT": "${config.load_timeout}",
+      "OLLAMA_FLASH_ATTENTION": "${config.flash_attention}",
+      "OLLAMA_KV_CACHE_TYPE": "${config.kv_cache_type}",
+      "OLLAMA_NO_CLOUD": "${config.no_cloud}"
+    },
+    "volumes": [
+      {
+        "source": "$AW_APP_DATA/ollama",
+        "target": "/root/.ollama",
+        "mode": "rw"
+      }
+    ],
+    "sidecars": [
+      {
+        "name": "webui",
+        "image": "ghcr.io/open-webui/open-webui:v0.13.4",
+        "port": 8080,
+        "resources": {
+          "cpus": 1,
+          "mem_mb": 2048
+        },
+        "env": {
+          "OLLAMA_BASE_URL": "http://aw-app-ollama:11434",
+          "WEBUI_AUTH": "True",
+          "ENABLE_OPENAI_API": "False",
+          "ENABLE_OLLAMA_API": "True",
+          "ENABLE_SIGNUP": "True",
+          "HF_HUB_OFFLINE": "1",
+          "RAG_EMBEDDING_MODEL_AUTO_UPDATE": "False",
+          "WHISPER_MODEL_AUTO_UPDATE": "False",
+          "DO_NOT_TRACK": "True",
+          "SCARF_NO_ANALYTICS": "True",
+          "WEBUI_URL": "${app.url}",
+          "CORS_ALLOW_ORIGIN": "${app.url}"
+        },
+        "volumes": [
+          {
+            "source": "$AW_APP_DATA/open-webui",
+            "target": "/app/backend/data",
+            "mode": "rw"
+          }
+        ]
+      }
+    ]
+  },
+  "contributes": {
+    "windows": [
+      {
+        "id": "ollama.main",
+        "title": "Ollama",
+        "icon": "message-square",
+        "body": {
+          "type": "managed_app",
+          "kind": "web",
+          "path": "/"
+        }
+      },
+      {
+        "id": "ollama.settings",
+        "title": "Ollama settings",
+        "body": {
+          "type": "declarative",
+          "spec": "windows/settings.json"
+        }
+      }
+    ],
+    "settings_panels": [
+      {
+        "id": "ollama.settings",
+        "window": "ollama.settings"
+      }
+    ],
+    "doctor": [
+      {
+        "label": "Ollama and Open WebUI readiness",
+        "route": "/workspace/health"
+      }
+    ]
+  },
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "default_model": {
+        "type": "string",
+        "default": "",
+        "title": "Default model",
+        "description": "Optional local model name (for example smollm2:135m). Never downloads a model. Overrides the WebUI global default; saved chat choices still win. Pull explicitly in Open WebUI. Applied on save.",
+        "x-env": "AW_OLLAMA_DEFAULT_MODEL",
+        "maxLength": 128,
+        "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]*(?:/[A-Za-z0-9][A-Za-z0-9._-]*)*(?::[A-Za-z0-9][A-Za-z0-9._-]*)?)?$"
+      },
+      "accelerator": {
+        "type": "string",
+        "default": "auto",
+        "title": "Accelerator",
+        "description": "Auto uses devices only if the host grants them; CPU fallback is expected without a grant. Effective use is reported only while a model is loaded. GPU host delivery prerequisite is not yet shipped.",
+        "x-env": "AW_OLLAMA_ACCELERATOR",
+        "enum": [
+          "auto",
+          "cpu"
+        ]
+      },
+      "context_length": {
+        "type": "integer",
+        "default": 4096,
+        "title": "Default context length",
+        "description": "Applied when saved; affected containers restart.",
+        "x-env": "OLLAMA_CONTEXT_LENGTH",
+        "minimum": 512,
+        "maximum": 32768
+      },
+      "keep_alive": {
+        "type": "string",
+        "default": "5m",
+        "title": "Model keep-alive",
+        "description": "0 unloads after requests; otherwise 1\u201399 seconds or minutes. Save restarts Ollama.",
+        "x-env": "OLLAMA_KEEP_ALIVE",
+        "pattern": "^(?:0|[1-9][0-9]?[sm]|[1-9]m)$",
+        "maxLength": 4
+      },
+      "num_parallel": {
+        "type": "integer",
+        "default": 1,
+        "title": "Parallel requests",
+        "description": "Applied when saved; affected containers restart.",
+        "x-env": "OLLAMA_NUM_PARALLEL",
+        "minimum": 1,
+        "maximum": 4
+      },
+      "max_loaded_models": {
+        "type": "integer",
+        "default": 1,
+        "title": "Maximum loaded models",
+        "description": "Applied when saved; affected containers restart.",
+        "x-env": "OLLAMA_MAX_LOADED_MODELS",
+        "minimum": 1,
+        "maximum": 2
+      },
+      "max_queue": {
+        "type": "integer",
+        "default": 32,
+        "title": "Maximum queued requests",
+        "description": "Applied when saved; affected containers restart.",
+        "x-env": "OLLAMA_MAX_QUEUE",
+        "minimum": 1,
+        "maximum": 128
+      },
+      "load_timeout": {
+        "type": "string",
+        "default": "5m",
+        "title": "Model load timeout",
+        "description": "Applied when saved; affected containers restart.",
+        "x-env": "OLLAMA_LOAD_TIMEOUT",
+        "enum": [
+          "1m",
+          "5m",
+          "10m",
+          "15m"
+        ]
+      },
+      "flash_attention": {
+        "type": "boolean",
+        "default": false,
+        "title": "Flash attention",
+        "description": "Applied when saved; affected containers restart.",
+        "x-env": "OLLAMA_FLASH_ATTENTION"
+      },
+      "kv_cache_type": {
+        "type": "string",
+        "default": "f16",
+        "title": "KV cache type",
+        "description": "Quantized cache requires flash attention and supported hardware. Use f16 on CPU. Save restarts Ollama.",
+        "x-env": "OLLAMA_KV_CACHE_TYPE",
+        "enum": [
+          "f16",
+          "q8_0",
+          "q4_0"
+        ]
+      },
+      "no_cloud": {
+        "type": "boolean",
+        "default": true,
+        "title": "Disable Ollama cloud features",
+        "description": "Applied when saved; affected containers restart.",
+        "x-env": "OLLAMA_NO_CLOUD"
+      }
+    },
+    "required": [
+      "default_model",
+      "accelerator",
+      "context_length",
+      "keep_alive",
+      "num_parallel",
+      "max_loaded_models",
+      "max_queue",
+      "load_timeout",
+      "flash_attention",
+      "kv_cache_type",
+      "no_cloud"
+    ],
+    "additionalProperties": false,
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "kv_cache_type": {
+              "enum": [
+                "q8_0",
+                "q4_0"
+              ]
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "flash_attention": {
+              "const": true
+            }
+          }
+        }
+      }
+    ]
+  },
+  "dependencies": {},
+  "migrations": {}
+}
