@@ -2,7 +2,7 @@
   "manifest_version": 1,
   "id": "ollama",
   "name": "Ollama",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Run local AI models and chat privately through Open WebUI, with persistent models and workspace runtime controls.",
   "icon": "message-square",
   "tier": "container",
@@ -19,12 +19,13 @@
     "host:device-gpu"
   ],
   "runtime": {
-    "image": "ghcr.io/tekflox/aw-app-ollama:v0.1.0",
+    "image": "ghcr.io/tekflox/aw-app-ollama:v0.1.1",
     "port": 8081,
     "resources": {
       "cpus": 2,
       "mem_mb": 4096
     },
+    "run_flags_needed": ["--user=${data.uid}:${data.gid}"],
     "host_power_optional": [
       "gpu"
     ],
@@ -44,7 +45,7 @@
     "volumes": [
       {
         "source": "$AW_APP_DATA/ollama",
-        "target": "/root/.ollama",
+        "target": "/var/lib/ollama/.ollama",
         "mode": "rw"
       }
     ],
