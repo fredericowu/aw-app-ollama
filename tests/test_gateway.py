@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
-from aiohttp import ClientSession, WSMsgType, web
+from aiohttp import ClientSession, DummyCookieJar, WSMsgType, web
 from aiohttp.test_utils import TestServer
 from jsonschema import Draft202012Validator
 
@@ -96,6 +96,7 @@ def test_streaming_proxy_status_and_websockets():
                              ollama=str(engine.make_url("")).rstrip("/"),
                              webui=str(webui.make_url("")).rstrip("/"))
             async with TestServer(app) as gateway, ClientSession() as client:
+                assert isinstance(app["session"].cookie_jar, DummyCookieJar)
                 async with client.get(gateway.make_url("/workspace/health")) as response:
                     data = await response.json()
                     assert response.status == 200 and data["ok"]

@@ -10,7 +10,7 @@ import os
 import re
 from pathlib import Path
 
-from aiohttp import ClientError, ClientSession, ClientTimeout, WSMsgType, web
+from aiohttp import ClientError, ClientSession, ClientTimeout, DummyCookieJar, WSMsgType, web
 from multidict import CIMultiDict
 
 ROOT = Path(__file__).parent
@@ -192,7 +192,7 @@ async def proxy(request):
 
 async def lifecycle(app):
     async with ClientSession(timeout=ClientTimeout(total=None, sock_connect=10),
-                             auto_decompress=False) as session:
+                             auto_decompress=False, cookie_jar=DummyCookieJar()) as session:
         app["session"] = session
         process = None
         watcher = None
