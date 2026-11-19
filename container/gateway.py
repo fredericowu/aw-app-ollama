@@ -59,7 +59,7 @@ def child_environment(config):
         if spec["x-env"].startswith("OLLAMA_"):
             value = config[key]
             env[spec["x-env"]] = str(value).lower() if isinstance(value, bool) else str(value)
-    env.update(OLLAMA_HOST="0.0.0.0:11434", OLLAMA_MODELS="/root/.ollama/models")
+    env.update(OLLAMA_HOST="0.0.0.0:11434", OLLAMA_MODELS="/var/lib/ollama/.ollama/models")
     if config["accelerator"] == "cpu":
         env.update(CUDA_VISIBLE_DEVICES="-1", ROCR_VISIBLE_DEVICES="-1", GGML_VK_VISIBLE_DEVICES="-1")
     return env

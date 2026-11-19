@@ -9,14 +9,14 @@ jobs:
   unit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.11'
       - run: pip install -r requirements-dev.txt
       - run: python -m pytest tests/ -q
       - run: ruff check .
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: tekflox/aw-marketplace
           path: .marketplace
@@ -24,15 +24,44 @@ jobs:
   image:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - run: docker build -t ollama-test container
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Build the image
+        run: |
+          # CI-only: when the default Ubuntu mirrors are unreachable (outage seen
+          # 2026-11-19, apt retries for many minutes), build the same Dockerfile
+          # with apt pointed at the official Azure Ubuntu mirror the runners use.
+          # The shipped Dockerfile is unchanged.
+          dockerfile=container/Dockerfile
+          if ! { curl -fsS -m 15 -o /dev/null http://archive.ubuntu.com/ubuntu/dists/noble/InRelease && curl -fsS -m 15 -o /dev/null http://security.ubuntu.com/ubuntu/dists/noble-security/InRelease; }; then
+            echo "::warning::archive.ubuntu.com or security.ubuntu.com unreachable; building via azure.archive.ubuntu.com"
+            sed '/^RUN apt-get update/i RUN sed -i "s#//archive.ubuntu.com#//azure.archive.ubuntu.com#; s#//security.ubuntu.com#//azure.archive.ubuntu.com#" /etc/apt/sources.list.d/ubuntu.sources' container/Dockerfile > "$RUNNER_TEMP/Dockerfile.ci"
+            dockerfile="$RUNNER_TEMP/Dockerfile.ci"
+          fi
+          docker build -f "$dockerfile" -t ollama-test container
       - name: Verify Ollama child and actionable unavailable WebUI health
         run: |
-          docker run -d --name ollama-test -e AW_OLLAMA_ACCELERATOR=cpu ollama-test
-          trap 'docker logs ollama-test; docker rm -f ollama-test' EXIT
+          # Legacy v0.1.0 fixture: bind root owned by the workspace user, nested entries root-owned.
+          docker volume create ollama-data
+          docker run --rm -v ollama-data:/d --entrypoint sh ollama-test -c 'chown 1001:1001 /d; mkdir -p /d/models/blobs; echo blob > /d/models/blobs/sha256-aa; chmod 600 /d/models/blobs/sha256-aa'
+          docker run -d --name ollama-test --group-add 4321 -e AW_OLLAMA_ACCELERATOR=cpu -v ollama-data:/var/lib/ollama/.ollama ollama-test
+          trap 'docker logs ollama-test; docker rm -f ollama-test; docker volume rm -f ollama-data' EXIT
           for attempt in $(seq 1 30); do
             if docker exec ollama-test /app/venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:11434/api/version')"; then break; fi
             sleep 2
           done
           docker exec ollama-test /app/venv/bin/python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:11434/api/version').read())"
           docker exec ollama-test /app/venv/bin/python -c "import json,urllib.request; d=json.load(urllib.request.urlopen('http://127.0.0.1:8081/workspace/status')); assert not d['ok'] and d['webui']['error'] and d['ollama']['version']; assert not d['loaded']; print(d)"
+          docker exec ollama-test sh -c 'n=0; for pat in "^/app/venv/bin/python /app/gateway.py" "^ollama serve"; do pids=$(pgrep -f "$pat") || exit 1; for p in $pids; do grep -qE "^Uid:\s+1001\s+1001\s+1001\s+1001" /proc/$p/status && grep -qE "^CapEff:\s+0+$" /proc/$p/status || exit 1; grep -qE "^Groups:.*\<4321\>" /proc/$p/status || exit 1; ! grep -qE "^Groups:.*\<0\>" /proc/$p/status || exit 1; n=$((n+1)); done; done; test $n -ge 2'
+          docker exec -u 0 ollama-test sh -c 'test "$(stat -c %u:%g /var/lib/ollama/.ollama/models/blobs/sha256-aa)" = 1001:1001 && test "$(stat -c %a /var/lib/ollama/.ollama/models/blobs/sha256-aa)" = 600'
+          docker run --rm -v ollama-data:/var/lib/ollama/.ollama --entrypoint sh ollama-test -c 'ln -s /etc/passwd /var/lib/ollama/.ollama/models/l'
+          out=$(docker run --rm -v ollama-data:/var/lib/ollama/.ollama ollama-test 2>&1 || true)
+          echo "$out"
+          echo "$out" | grep -q 'unexpected symlink'
+          docker run --rm -v ollama-data:/var/lib/ollama/.ollama --entrypoint sh ollama-test -c 'rm -f /var/lib/ollama/.ollama/models/l'
+          docker volume create ollama-nested
+          out=$(docker run --rm -v ollama-data:/var/lib/ollama/.ollama -v ollama-nested:/var/lib/ollama/.ollama/models/nested ollama-test 2>&1 || true)
+          docker volume rm -f ollama-nested
+          echo "$out"
+          echo "$out" | grep -q 'nested mount inside the model store'
+      - name: Run the image on real rootless Podman (supported bind owners)
+        run: tests/rootless-podman.sh ollama-test

@@ -8,6 +8,7 @@ from aiohttp import ClientSession, DummyCookieJar, WSMsgType, web
 from aiohttp.test_utils import TestServer
 from jsonschema import Draft202012Validator
 
+import bootstrap
 from gateway import child_environment, create_app, settings
 
 ROOT = Path(__file__).parents[1]
@@ -144,3 +145,59 @@ def test_unavailable_services_and_proxy_failure():
             async with client.get(gateway.make_url("/")) as response:
                 assert response.status == 502
     asyncio.run(scenario())
+
+
+def test_drop_preserves_runtime_groups_and_sheds_root():
+    assert bootstrap.next_groups([0, 4321, 1001], 1001, 65534, False) == [4321]
+
+
+def test_keep_groups_overflow_gid_is_left_untouched():
+    assert bootstrap.next_groups([65534], 1001, 65534, True) is None
+    # rootless: engine user's primary group (0) alongside an unmapped render group
+    assert bootstrap.next_groups([0, 65534], 1001, 65534, True) is None
+
+
+def test_mounts_below_ignores_siblings_and_the_root_itself(tmp_path, monkeypatch):
+    info = tmp_path / "mountinfo"
+    info.write_bytes(("1 0 0:1 / /var/lib/ollama/.ollama rw - x\n"
+                    "2 1 0:2 / /var/lib/ollama/.ollama/models/n\\040x rw - x\n"
+                    "3 1 0:3 / /var/lib/ollama/.ollama-other rw - x\n").encode())
+    real_open = open
+    monkeypatch.setattr("builtins.open", lambda p, *a, **k: real_open(info if p == "/proc/self/mountinfo" else p, *a, **k))
+    assert bootstrap.mounts_below("/var/lib/ollama/.ollama") == ["/var/lib/ollama/.ollama/models/n x"]
+
+
+def test_bind_is_found_by_exact_mountpoint(tmp_path, monkeypatch):
+    info = tmp_path / "mountinfo"
+    info.write_bytes(b"1 0 8:1 / / rw - ext4 x\n2 1 8:1 /data/\xff /var/lib/ollama/.ollama rw - ext4 x\n")
+    real_open = open
+    monkeypatch.setattr("builtins.open", lambda p, *a, **k: real_open(info if p == "/proc/self/mountinfo" else p, *a, **k))
+    assert "/var/lib/ollama/.ollama" in bootstrap.mount_points()
+
+
+def test_rootless_keeps_mapped_primary_group_zero():
+    assert bootstrap.next_groups([0, 4321], 1001, 65534, True) == [0, 4321]
+
+
+@pytest.mark.parametrize("uid,gid,userns,expected", [
+    (1001, 1001, False, "drop"),
+    (1001, 0, False, "refuse"),
+    (0, 1001, False, "refuse"),
+    (0, 0, False, "refuse"),
+    (1001, 1001, True, "drop"),
+    (1001, 0, True, "drop"),
+    (0, 1001, True, "as_is"),
+    (0, 0, True, "as_is"),
+])
+def test_plan_follows_bind_uid_and_takes_gid_as_found(uid, gid, userns, expected):
+    assert bootstrap.plan(uid, gid, userns) == expected
+
+
+def test_mountinfo_splits_on_spaces_only(tmp_path, monkeypatch):
+    # The kernel escapes space, tab, newline and backslash but emits a literal
+    # vertical tab in a source path; bytes.split() would shift the mountpoint.
+    info = tmp_path / "mountinfo"
+    info.write_bytes(b"2 1 8:1 /data/a\x0bb /var/lib/ollama/.ollama rw - ext4 x\n")
+    real_open = open
+    monkeypatch.setattr("builtins.open", lambda p, *a, **k: real_open(info if p == "/proc/self/mountinfo" else p, *a, **k))
+    assert "/var/lib/ollama/.ollama" in bootstrap.mount_points()
