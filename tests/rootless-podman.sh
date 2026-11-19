@@ -10,7 +10,8 @@ BIND=/var/lib/ollama/.ollama
 [ "$(podman info --format '{{.Host.Security.Rootless}}')" = true ] || { echo "podman is not rootless here"; exit 1; }
 podman unshare true || { echo "podman unshare unusable (subuid/subgid missing?)"; exit 1; }
 docker save "$IMAGE" | podman load
-podman image exists "localhost/$IMAGE" || { echo "image did not load into podman"; exit 1; }
+IMAGE=docker.io/library/$IMAGE
+podman image exists "$IMAGE" || { echo "image did not load into podman"; exit 1; }
 
 work=$(mktemp -d)
 trap 'for c in $(podman ps -aq --filter name=rl-); do podman rm -f "$c" >/dev/null; done; podman unshare rm -rf "$work"' EXIT
