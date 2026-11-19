@@ -144,18 +144,23 @@ def main():
                 raise BootstrapError(f"{BIND} must be a mounted directory (the workspace data bind)")
             root = os.stat(BIND)
             uid, gid = root.st_uid, root.st_gid
-            if uid == 0 or gid == 0:
+            if (uid == 0 or gid == 0) and not in_user_namespace():
                 raise BootstrapError(f"{BIND} is owned by {uid}:{gid}; expected a nonzero workspace owner")
             nested = mounts_below(BIND)
             if nested:
                 raise BootstrapError(f"nested mount inside the model store: {nested[0]}")
-            fd = os.open(BIND, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-            try:
-                reconcile(fd, BIND, uid, gid, root.st_dev)
-            finally:
-                os.close(fd)
-            drop(uid, gid)
-            os.environ["HOME"] = os.path.dirname(BIND.rstrip("/"))
+            if uid == 0 or gid == 0:
+                # Rootless engine: the data owner is the engine user, which is
+                # container root here. There is no higher identity to drop from.
+                print("ollama bootstrap: data owner maps to 0 in a user namespace; running unprivileged on the host", flush=True)
+            else:
+                fd = os.open(BIND, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+                try:
+                    reconcile(fd, BIND, uid, gid, root.st_dev)
+                finally:
+                    os.close(fd)
+                drop(uid, gid)
+                os.environ["HOME"] = os.path.dirname(BIND.rstrip("/"))
         try:
             # Anonymous/exclusive temp file: never touches an existing entry.
             with tempfile.TemporaryFile(dir=BIND):
