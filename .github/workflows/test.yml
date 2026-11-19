@@ -39,7 +39,7 @@ jobs:
           done
           docker exec ollama-test /app/venv/bin/python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:11434/api/version').read())"
           docker exec ollama-test /app/venv/bin/python -c "import json,urllib.request; d=json.load(urllib.request.urlopen('http://127.0.0.1:8081/workspace/status')); assert not d['ok'] and d['webui']['error'] and d['ollama']['version']; assert not d['loaded']; print(d)"
-          docker exec ollama-test sh -c 'for p in $(pgrep -f "gateway.py|ollama serve"); do grep -qE "^Uid:\s+1001\s+1001\s+1001\s+1001" /proc/$p/status && grep -qE "^CapEff:\s+0+$" /proc/$p/status || exit 1; done'
+          docker exec ollama-test sh -c 'for p in $(pgrep -f "^(/app/venv/bin/python /app/gateway.py|ollama serve)"); do grep -qE "^Uid:\s+1001\s+1001\s+1001\s+1001" /proc/$p/status && grep -qE "^CapEff:\s+0+$" /proc/$p/status || exit 1; done'
           docker exec -u 0 ollama-test sh -c 'test "$(stat -c %u:%g /var/lib/ollama/.ollama/models/blobs/sha256-aa)" = 1001:1001 && test "$(stat -c %a /var/lib/ollama/.ollama/models/blobs/sha256-aa)" = 600'
           docker run --rm -v ollama-data:/var/lib/ollama/.ollama --entrypoint sh ollama-test -c 'ln -s /etc/passwd /var/lib/ollama/.ollama/models/l'
           out=$(docker run --rm -v ollama-data:/var/lib/ollama/.ollama ollama-test 2>&1 || true)
