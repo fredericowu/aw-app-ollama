@@ -6,6 +6,7 @@ execs the gateway. Fails closed with an actionable message on any problem.
 """
 import ctypes
 import os
+import re
 import stat
 import sys
 import tempfile
@@ -87,8 +88,9 @@ def next_groups(groups, gid, overflow):
 
 def mount_points():
     """All mount points from mountinfo (st_dev/ismount miss same-device binds)."""
-    with open("/proc/self/mountinfo") as f:
-        return [line.split()[4].encode().decode("unicode_escape") for line in f]
+    with open("/proc/self/mountinfo", "rb") as f:
+        return [os.fsdecode(re.sub(rb"\\([0-7]{3})", lambda m: bytes([int(m.group(1), 8)]), line.split()[4]))
+                for line in f]
 
 
 def mounts_below(path):

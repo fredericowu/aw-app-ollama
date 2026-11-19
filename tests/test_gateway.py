@@ -159,9 +159,9 @@ def test_keep_groups_overflow_gid_is_left_untouched():
 
 def test_mounts_below_ignores_siblings_and_the_root_itself(tmp_path, monkeypatch):
     info = tmp_path / "mountinfo"
-    info.write_text("1 0 0:1 / /var/lib/ollama/.ollama rw - x\n"
+    info.write_bytes(("1 0 0:1 / /var/lib/ollama/.ollama rw - x\n"
                     "2 1 0:2 / /var/lib/ollama/.ollama/models/n\\040x rw - x\n"
-                    "3 1 0:3 / /var/lib/ollama/.ollama-other rw - x\n")
+                    "3 1 0:3 / /var/lib/ollama/.ollama-other rw - x\n").encode())
     real_open = open
     monkeypatch.setattr("builtins.open", lambda p, *a, **k: real_open(info if p == "/proc/self/mountinfo" else p, *a, **k))
     assert bootstrap.mounts_below("/var/lib/ollama/.ollama") == ["/var/lib/ollama/.ollama/models/n x"]
@@ -169,7 +169,7 @@ def test_mounts_below_ignores_siblings_and_the_root_itself(tmp_path, monkeypatch
 
 def test_bind_is_found_by_exact_mountpoint(tmp_path, monkeypatch):
     info = tmp_path / "mountinfo"
-    info.write_text("1 0 8:1 / / rw - ext4 x\n2 1 8:1 /data/ollama /var/lib/ollama/.ollama rw - ext4 x\n")
+    info.write_bytes(b"1 0 8:1 / / rw - ext4 x\n2 1 8:1 /data/\xff /var/lib/ollama/.ollama rw - ext4 x\n")
     real_open = open
     monkeypatch.setattr("builtins.open", lambda p, *a, **k: real_open(info if p == "/proc/self/mountinfo" else p, *a, **k))
     assert "/var/lib/ollama/.ollama" in bootstrap.mount_points()
