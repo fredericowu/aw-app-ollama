@@ -8,6 +8,7 @@ import ctypes
 import os
 import stat
 import sys
+import tempfile
 
 BIND = os.environ.get("AW_OLLAMA_BIND", "/var/lib/ollama/.ollama")
 GATEWAY = ["/app/venv/bin/python", "/app/gateway.py"]
@@ -62,7 +63,9 @@ def reconcile(dir_fd, path, uid, gid, dev):
 
 
 def drop(uid, gid):
-    os.setgroups([])
+    # Keep supplementary groups granted by the runtime (e.g. keep-groups or
+    # --group-add for GPU render nodes); only shed root's own group.
+    os.setgroups([g for g in os.getgroups() if g not in (0, gid)])
     os.setgid(gid)
     os.setuid(uid)
     libc = ctypes.CDLL(None, use_errno=True)
@@ -104,11 +107,10 @@ def main():
                 os.close(fd)
             drop(uid, gid)
             os.environ["HOME"] = os.path.dirname(BIND.rstrip("/"))
-        probe = os.path.join(BIND, ".write-probe")
         try:
-            with open(probe, "w"):
+            # Anonymous/exclusive temp file: never touches an existing entry.
+            with tempfile.TemporaryFile(dir=BIND):
                 pass
-            os.unlink(probe)
         except OSError as exc:
             raise BootstrapError(f"{BIND} is not writable by uid {os.geteuid()}: {exc}")
     except (BootstrapError, OSError) as exc:
