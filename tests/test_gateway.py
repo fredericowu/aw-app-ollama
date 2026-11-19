@@ -8,6 +8,7 @@ from aiohttp import ClientSession, DummyCookieJar, WSMsgType, web
 from aiohttp.test_utils import TestServer
 from jsonschema import Draft202012Validator
 
+import bootstrap
 from gateway import child_environment, create_app, settings
 
 ROOT = Path(__file__).parents[1]
@@ -144,3 +145,23 @@ def test_unavailable_services_and_proxy_failure():
             async with client.get(gateway.make_url("/")) as response:
                 assert response.status == 502
     asyncio.run(scenario())
+
+
+def test_drop_preserves_runtime_groups_and_sheds_root():
+    assert bootstrap.next_groups([0, 4321, 1001], 1001, 65534) == [4321]
+
+
+def test_keep_groups_overflow_gid_is_left_untouched():
+    assert bootstrap.next_groups([65534], 1001, 65534) is None
+    with pytest.raises(bootstrap.BootstrapError):
+        bootstrap.next_groups([0, 65534], 1001, 65534)
+
+
+def test_mounts_below_ignores_siblings_and_the_root_itself(tmp_path, monkeypatch):
+    info = tmp_path / "mountinfo"
+    info.write_text("1 0 0:1 / /var/lib/ollama/.ollama rw - x\n"
+                    "2 1 0:2 / /var/lib/ollama/.ollama/models/n\\040x rw - x\n"
+                    "3 1 0:3 / /var/lib/ollama/.ollama-other rw - x\n")
+    real_open = open
+    monkeypatch.setattr("builtins.open", lambda p, *a, **k: real_open(info if p == "/proc/self/mountinfo" else p, *a, **k))
+    assert bootstrap.mounts_below("/var/lib/ollama/.ollama") == ["/var/lib/ollama/.ollama/models/n x"]

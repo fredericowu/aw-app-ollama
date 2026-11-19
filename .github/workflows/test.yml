@@ -45,3 +45,9 @@ jobs:
           out=$(docker run --rm -v ollama-data:/var/lib/ollama/.ollama ollama-test 2>&1 || true)
           echo "$out"
           echo "$out" | grep -q 'unexpected symlink'
+          docker run --rm -v ollama-data:/var/lib/ollama/.ollama --entrypoint sh ollama-test -c 'rm -f /var/lib/ollama/.ollama/models/l'
+          docker volume create ollama-nested
+          out=$(docker run --rm -v ollama-data:/var/lib/ollama/.ollama -v ollama-nested:/var/lib/ollama/.ollama/models/nested ollama-test 2>&1 || true)
+          docker volume rm -f ollama-nested
+          echo "$out"
+          echo "$out" | grep -q 'nested mount inside the model store'

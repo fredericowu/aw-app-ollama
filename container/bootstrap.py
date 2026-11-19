@@ -62,10 +62,46 @@ def reconcile(dir_fd, path, uid, gid, dev):
             os.close(fd)
 
 
+def overflow_gid():
+    try:
+        with open("/proc/sys/kernel/overflowgid") as f:
+            return int(f.read())
+    except (OSError, ValueError):
+        return 65534
+
+
+def next_groups(groups, gid, overflow):
+    """Supplementary groups to apply on drop, or None to leave them untouched.
+
+    Runtime-granted groups (--group-add, or Podman keep-groups for GPU render
+    nodes) must survive. With keep-groups the host groups appear as the
+    overflow GID, which cannot be re-applied from inside the user namespace
+    (crun skips setgroups for the same reason), so leave them as they are.
+    Root's own group is only shed when it can be, otherwise fail closed.
+    """
+    if overflow in groups:
+        if 0 in groups:
+            raise BootstrapError("cannot shed root's group while preserving inherited host groups")
+        return None
+    return [g for g in groups if g not in (0, gid)]
+
+
+def mounts_below(path):
+    """Mount points strictly inside path, from mountinfo (st_dev misses same-device binds)."""
+    base = os.path.normpath(path)
+    found = []
+    with open("/proc/self/mountinfo") as f:
+        for line in f:
+            point = line.split()[4].encode().decode("unicode_escape")
+            if point != base and point.startswith(base + "/"):
+                found.append(point)
+    return found
+
+
 def drop(uid, gid):
-    # Keep supplementary groups granted by the runtime (e.g. keep-groups or
-    # --group-add for GPU render nodes); only shed root's own group.
-    os.setgroups([g for g in os.getgroups() if g not in (0, gid)])
+    groups = next_groups(os.getgroups(), gid, overflow_gid())
+    if groups is not None:
+        os.setgroups(groups)
     os.setgid(gid)
     os.setuid(uid)
     libc = ctypes.CDLL(None, use_errno=True)
@@ -100,6 +136,9 @@ def main():
             uid, gid = root.st_uid, root.st_gid
             if uid == 0 or gid == 0:
                 raise BootstrapError(f"{BIND} is owned by {uid}:{gid}; expected a nonzero workspace owner")
+            nested = mounts_below(BIND)
+            if nested:
+                raise BootstrapError(f"nested mount inside the model store: {nested[0]}")
             fd = os.open(BIND, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
             try:
                 reconcile(fd, BIND, uid, gid, root.st_dev)
