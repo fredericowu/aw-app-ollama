@@ -108,12 +108,8 @@ def mounts_below(path):
     return [p for p in mount_points() if p != base and p.startswith(base + "/")]
 
 
-def drop(uid, gid):
-    groups = next_groups(os.getgroups(), gid, overflow_gid(), in_user_namespace())
-    if groups is not None:
-        os.setgroups(groups)
-    os.setgid(gid)
-    os.setuid(uid)
+def lock_down():
+    """Clear every capability set and forbid regaining privilege via exec."""
     libc = ctypes.CDLL(None, use_errno=True)
     libc.prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0)
     if libc.prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0:
@@ -128,6 +124,15 @@ def drop(uid, gid):
     data = (Data * 2)()
     if libc.capset(ctypes.byref(Header(0x20080522, 0)), data) != 0:
         raise BootstrapError("could not clear inheritable capabilities")
+
+
+def drop(uid, gid):
+    groups = next_groups(os.getgroups(), gid, overflow_gid(), in_user_namespace())
+    if groups is not None:
+        os.setgroups(groups)
+    os.setgid(gid)
+    os.setuid(uid)
+    lock_down()
     if os.getresuid() != (uid, uid, uid) or os.getresgid() != (gid, gid, gid):
         raise BootstrapError("privilege drop did not take effect")
     try:
@@ -153,6 +158,7 @@ def main():
                 # Rootless engine: the data owner is the engine user, which is
                 # container root here. There is no higher identity to drop from.
                 print("ollama bootstrap: data owner maps to 0 in a user namespace; running unprivileged on the host", flush=True)
+                lock_down()
             else:
                 fd = os.open(BIND, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
                 try:
