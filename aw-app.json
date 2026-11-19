@@ -25,7 +25,6 @@
       "cpus": 2,
       "mem_mb": 4096
     },
-    "run_flags_needed": ["--user=${data.uid}:${data.gid}"],
     "host_power_optional": [
       "gpu"
     ],

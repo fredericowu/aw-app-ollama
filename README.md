@@ -68,7 +68,7 @@ The selected model must already be pulled and accessible to the WebUI user.
 
 ## Persistence and lifecycle
 
-`$AW_APP_DATA/ollama` → `/root/.ollama` stores model blobs/manifests/keys.
+`$AW_APP_DATA/ollama` → `/var/lib/ollama/.ollama` stores model blobs/manifests/keys.
 `$AW_APP_DATA/open-webui` → `/app/backend/data` stores chats, accounts, and UI
 configuration. Both resolve under `$AW_WORKSPACE_HOME/data/ollama`; neither is
 inside the disposable package directory. Framework config is also durable.

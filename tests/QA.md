@@ -27,6 +27,13 @@ not a claim that a test has passed. QA runs only against merged/deployed work.
    POST `/api/apps/ollama/config`. After prerequisite 1: expect 4xx **before**
    config persistence/runtime replacement; old service/config remain healthy.
    Quantized KV requires flash attention; use f16 for CPU baseline.
+6a. v0.1.1 storage upgrade: start published v0.1.0 on a real bind, pull a small
+   model (root-owned nested dirs expected), upgrade via the workspace lifecycle
+   with the same bind; confirm `docker top`/`/proc/<pid>/status` shows gateway
+   and `ollama serve` as the bind owner with CapEff 0, blob/manifest/key hashes
+   unchanged, inference from the existing model with no pull, and a new pull+delete
+   succeeds. Recreate the container without purging and repeat. Rollback to the
+   pinned v0.1.0 package+image on the same bind must still read/write.
 7. Pull a deliberately nonexistent model in WebUI: error is visible; cancel a
    real pull, retry, and recover without reinstall. Stop WebUI sidecar: aggregate
    health fails while Ollama stays identifiable; restart and verify recovery.
