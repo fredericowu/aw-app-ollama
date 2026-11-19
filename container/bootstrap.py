@@ -126,6 +126,20 @@ def lock_down():
         raise BootstrapError("could not clear inheritable capabilities")
 
 
+def plan(uid, gid, userns):
+    """Decide what to do for a bind owned by uid:gid: 'refuse', 'as_is' or 'drop'.
+
+    Identity follows the bind UID; the GID is taken as found. Root-owned binds
+    are only tolerated in a user namespace, where uid 0 is the unprivileged
+    engine user and there is no higher identity to drop from. A GID of 0 on a
+    nonzero UID is the engine user's primary group there, so it is kept; on an
+    identity-mapped (rootful) engine it is real root's group and is refused.
+    """
+    if not userns:
+        return "refuse" if uid == 0 or gid == 0 else "drop"
+    return "as_is" if uid == 0 else "drop"
+
+
 def drop(uid, gid):
     groups = next_groups(os.getgroups(), gid, overflow_gid(), in_user_namespace())
     if groups is not None:
@@ -149,12 +163,14 @@ def main():
                 raise BootstrapError(f"{BIND} must be a mounted directory (the workspace data bind)")
             root = os.stat(BIND)
             uid, gid = root.st_uid, root.st_gid
-            if (uid == 0 or gid == 0) and not in_user_namespace():
+            userns = in_user_namespace()
+            action = plan(uid, gid, userns)
+            if action == "refuse":
                 raise BootstrapError(f"{BIND} is owned by {uid}:{gid}; expected a nonzero workspace owner")
             nested = mounts_below(BIND)
             if nested:
                 raise BootstrapError(f"nested mount inside the model store: {nested[0]}")
-            if uid == 0 or gid == 0:
+            if action == "as_is":
                 # Rootless engine: the data owner is the engine user, which is
                 # container root here. There is no higher identity to drop from.
                 print("ollama bootstrap: data owner maps to 0 in a user namespace; running unprivileged on the host", flush=True)

@@ -177,3 +177,17 @@ def test_bind_is_found_by_exact_mountpoint(tmp_path, monkeypatch):
 
 def test_rootless_keeps_mapped_primary_group_zero():
     assert bootstrap.next_groups([0, 4321], 1001, 65534, True) == [0, 4321]
+
+
+@pytest.mark.parametrize("uid,gid,userns,expected", [
+    (1001, 1001, False, "drop"),
+    (1001, 0, False, "refuse"),
+    (0, 1001, False, "refuse"),
+    (0, 0, False, "refuse"),
+    (1001, 1001, True, "drop"),
+    (1001, 0, True, "drop"),
+    (0, 1001, True, "as_is"),
+    (0, 0, True, "as_is"),
+])
+def test_plan_follows_bind_uid_and_takes_gid_as_found(uid, gid, userns, expected):
+    assert bootstrap.plan(uid, gid, userns) == expected

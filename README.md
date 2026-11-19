@@ -76,6 +76,27 @@ Restart, update and normal uninstall/reinstall retain these directories.
 Explicit data purge is destructive. This app never adopts an older unmanaged
 WebUI container or its volumes. Migration requires a separate request.
 
+### Data-owner support matrix
+
+The container starts as root only to reconcile ownership, then runs the gateway
+and `ollama serve` as the numeric owner of the bind (capabilities cleared,
+`no_new_privs` set). Identity follows the bind UID; the GID is taken as found.
+
+| Bind owner as seen in the container | Rootful engine (identity uid_map) | User namespace (rootless, hosted) |
+|---|---|---|
+| `1001:1001` (what the workspace provisions) | supported: reconcile, run as 1001 | supported: reconcile, run as 1001 |
+| `UID != 0`, `GID 0` | refused (exit 78) | best-effort: reconcile, run as `UID:0` |
+| `UID 0` | refused (exit 78) | best-effort: run as-is as the unprivileged engine user |
+
+* `1001:1001` is supported on rootful, hosted and rootless Podman engines. CI
+  runs it, plus `1001:0` and `0:0`, on real rootless Podman.
+* Other owners are best-effort and not produced by any provisioning path.
+  External, shared or root-squashed model stores are out of scope.
+* Hosted (per-tenant user namespace) ownership is derived from the code, not
+  measured.
+* GPU group passthrough (`--group-add`, keep-groups) is unverified: there is no
+  GPU hardware in CI or on the live workspace.
+
 The Python gateway supervises fixed argv `ollama serve`, exits on child death,
 and terminates the child on container shutdown. Docker health and app doctor
 both require Ollama `/api/version` and WebUI `/ready` (startup + DB readiness).
