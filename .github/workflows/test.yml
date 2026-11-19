@@ -51,3 +51,5 @@ jobs:
           docker volume rm -f ollama-nested
           echo "$out"
           echo "$out" | grep -q 'nested mount inside the model store'
+      - name: Run the image on real rootless Podman (supported bind owners)
+        run: tests/rootless-podman.sh ollama-test
