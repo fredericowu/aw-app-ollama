@@ -148,13 +148,13 @@ def test_unavailable_services_and_proxy_failure():
 
 
 def test_drop_preserves_runtime_groups_and_sheds_root():
-    assert bootstrap.next_groups([0, 4321, 1001], 1001, 65534) == [4321]
+    assert bootstrap.next_groups([0, 4321, 1001], 1001, 65534, False) == [4321]
 
 
 def test_keep_groups_overflow_gid_is_left_untouched():
-    assert bootstrap.next_groups([65534], 1001, 65534) is None
+    assert bootstrap.next_groups([65534], 1001, 65534, True) is None
     # rootless: engine user's primary group (0) alongside an unmapped render group
-    assert bootstrap.next_groups([0, 65534], 1001, 65534) is None
+    assert bootstrap.next_groups([0, 65534], 1001, 65534, True) is None
 
 
 def test_mounts_below_ignores_siblings_and_the_root_itself(tmp_path, monkeypatch):
@@ -173,3 +173,7 @@ def test_bind_is_found_by_exact_mountpoint(tmp_path, monkeypatch):
     real_open = open
     monkeypatch.setattr("builtins.open", lambda p, *a, **k: real_open(info if p == "/proc/self/mountinfo" else p, *a, **k))
     assert "/var/lib/ollama/.ollama" in bootstrap.mount_points()
+
+
+def test_rootless_keeps_mapped_primary_group_zero():
+    assert bootstrap.next_groups([0, 4321], 1001, 65534, True) == [0, 4321]

@@ -71,19 +71,29 @@ def overflow_gid():
         return 65534
 
 
-def next_groups(groups, gid, overflow):
+def in_user_namespace():
+    """True unless uid_map is the identity map (rootful engine)."""
+    try:
+        with open("/proc/self/uid_map") as f:
+            return f.read().split() != ["0", "0", "4294967295"]
+    except OSError:
+        return True
+
+
+def next_groups(groups, gid, overflow, userns):
     """Supplementary groups to apply on drop, or None to leave them untouched.
 
     Runtime-granted groups (--group-add, or Podman keep-groups for GPU render
     nodes) must survive. With keep-groups the host groups appear as the
     overflow GID, which cannot be re-applied from inside the user namespace
     (crun skips setgroups for the same reason), so leave them as they are.
-    In a rootless namespace a GID 0 in that list is the engine user's own
-    primary group, not real root, so it is left alone too.
+    GID 0 is root's group only on a rootful engine; in a user namespace it is
+    the engine user's own primary group and may be what grants device access.
     """
     if overflow in groups:
         return None
-    return [g for g in groups if g not in (0, gid)]
+    shed = {gid} if userns else {0, gid}
+    return [g for g in groups if g not in shed]
 
 
 def mount_points():
@@ -99,7 +109,7 @@ def mounts_below(path):
 
 
 def drop(uid, gid):
-    groups = next_groups(os.getgroups(), gid, overflow_gid())
+    groups = next_groups(os.getgroups(), gid, overflow_gid(), in_user_namespace())
     if groups is not None:
         os.setgroups(groups)
     os.setgid(gid)
