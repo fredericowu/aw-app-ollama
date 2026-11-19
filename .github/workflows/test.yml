@@ -32,8 +32,8 @@ jobs:
           # with apt pointed at the official Azure Ubuntu mirror the runners use.
           # The shipped Dockerfile is unchanged.
           dockerfile=container/Dockerfile
-          if ! curl -fsS -m 15 -o /dev/null http://archive.ubuntu.com/ubuntu/dists/noble/InRelease; then
-            echo "::warning::archive.ubuntu.com unreachable; building via azure.archive.ubuntu.com"
+          if ! { curl -fsS -m 15 -o /dev/null http://archive.ubuntu.com/ubuntu/dists/noble/InRelease && curl -fsS -m 15 -o /dev/null http://security.ubuntu.com/ubuntu/dists/noble-security/InRelease; }; then
+            echo "::warning::archive.ubuntu.com or security.ubuntu.com unreachable; building via azure.archive.ubuntu.com"
             sed '/^RUN apt-get update/i RUN sed -i "s#//archive.ubuntu.com#//azure.archive.ubuntu.com#; s#//security.ubuntu.com#//azure.archive.ubuntu.com#" /etc/apt/sources.list.d/ubuntu.sources' container/Dockerfile > "$RUNNER_TEMP/Dockerfile.ci"
             dockerfile="$RUNNER_TEMP/Dockerfile.ci"
           fi
