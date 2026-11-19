@@ -77,25 +77,23 @@ def next_groups(groups, gid, overflow):
     nodes) must survive. With keep-groups the host groups appear as the
     overflow GID, which cannot be re-applied from inside the user namespace
     (crun skips setgroups for the same reason), so leave them as they are.
-    Root's own group is only shed when it can be, otherwise fail closed.
+    In a rootless namespace a GID 0 in that list is the engine user's own
+    primary group, not real root, so it is left alone too.
     """
     if overflow in groups:
-        if 0 in groups:
-            raise BootstrapError("cannot shed root's group while preserving inherited host groups")
         return None
     return [g for g in groups if g not in (0, gid)]
 
 
-def mounts_below(path):
-    """Mount points strictly inside path, from mountinfo (st_dev misses same-device binds)."""
-    base = os.path.normpath(path)
-    found = []
+def mount_points():
+    """All mount points from mountinfo (st_dev/ismount miss same-device binds)."""
     with open("/proc/self/mountinfo") as f:
-        for line in f:
-            point = line.split()[4].encode().decode("unicode_escape")
-            if point != base and point.startswith(base + "/"):
-                found.append(point)
-    return found
+        return [line.split()[4].encode().decode("unicode_escape") for line in f]
+
+
+def mounts_below(path):
+    base = os.path.normpath(path)
+    return [p for p in mount_points() if p != base and p.startswith(base + "/")]
 
 
 def drop(uid, gid):
@@ -130,7 +128,7 @@ def drop(uid, gid):
 def main():
     try:
         if os.geteuid() == 0:
-            if not os.path.isdir(BIND) or os.path.islink(BIND) or not os.path.ismount(BIND):
+            if not os.path.isdir(BIND) or os.path.islink(BIND) or os.path.normpath(BIND) not in mount_points():
                 raise BootstrapError(f"{BIND} must be a mounted directory (the workspace data bind)")
             root = os.stat(BIND)
             uid, gid = root.st_uid, root.st_gid

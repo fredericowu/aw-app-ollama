@@ -153,8 +153,8 @@ def test_drop_preserves_runtime_groups_and_sheds_root():
 
 def test_keep_groups_overflow_gid_is_left_untouched():
     assert bootstrap.next_groups([65534], 1001, 65534) is None
-    with pytest.raises(bootstrap.BootstrapError):
-        bootstrap.next_groups([0, 65534], 1001, 65534)
+    # rootless: engine user's primary group (0) alongside an unmapped render group
+    assert bootstrap.next_groups([0, 65534], 1001, 65534) is None
 
 
 def test_mounts_below_ignores_siblings_and_the_root_itself(tmp_path, monkeypatch):
@@ -165,3 +165,11 @@ def test_mounts_below_ignores_siblings_and_the_root_itself(tmp_path, monkeypatch
     real_open = open
     monkeypatch.setattr("builtins.open", lambda p, *a, **k: real_open(info if p == "/proc/self/mountinfo" else p, *a, **k))
     assert bootstrap.mounts_below("/var/lib/ollama/.ollama") == ["/var/lib/ollama/.ollama/models/n x"]
+
+
+def test_bind_is_found_by_exact_mountpoint(tmp_path, monkeypatch):
+    info = tmp_path / "mountinfo"
+    info.write_text("1 0 8:1 / / rw - ext4 x\n2 1 8:1 /data/ollama /var/lib/ollama/.ollama rw - ext4 x\n")
+    real_open = open
+    monkeypatch.setattr("builtins.open", lambda p, *a, **k: real_open(info if p == "/proc/self/mountinfo" else p, *a, **k))
+    assert "/var/lib/ollama/.ollama" in bootstrap.mount_points()
