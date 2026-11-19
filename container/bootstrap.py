@@ -99,7 +99,7 @@ def next_groups(groups, gid, overflow, userns):
 def mount_points():
     """All mount points from mountinfo (st_dev/ismount miss same-device binds)."""
     with open("/proc/self/mountinfo", "rb") as f:
-        return [os.fsdecode(re.sub(rb"\\([0-7]{3})", lambda m: bytes([int(m.group(1), 8)]), line.split()[4]))
+        return [os.fsdecode(re.sub(rb"\\([0-7]{3})", lambda m: bytes([int(m.group(1), 8)]), line.split(b" ", 5)[4]))
                 for line in f]
 
 

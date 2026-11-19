@@ -191,3 +191,13 @@ def test_rootless_keeps_mapped_primary_group_zero():
 ])
 def test_plan_follows_bind_uid_and_takes_gid_as_found(uid, gid, userns, expected):
     assert bootstrap.plan(uid, gid, userns) == expected
+
+
+def test_mountinfo_splits_on_spaces_only(tmp_path, monkeypatch):
+    # The kernel escapes space, tab, newline and backslash but emits a literal
+    # vertical tab in a source path; bytes.split() would shift the mountpoint.
+    info = tmp_path / "mountinfo"
+    info.write_bytes(b"2 1 8:1 /data/a\x0bb /var/lib/ollama/.ollama rw - ext4 x\n")
+    real_open = open
+    monkeypatch.setattr("builtins.open", lambda p, *a, **k: real_open(info if p == "/proc/self/mountinfo" else p, *a, **k))
+    assert "/var/lib/ollama/.ollama" in bootstrap.mount_points()
