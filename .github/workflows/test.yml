@@ -25,7 +25,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - run: docker build -t ollama-test container
+      - name: Build the image
+        run: |
+          if ! docker build -t ollama-test container; then
+            # CI-only fallback for an archive.ubuntu.com/security.ubuntu.com
+            # outage (seen 2026-11-19): same Dockerfile, apt pointed at the
+            # official Azure Ubuntu mirror GitHub runners use. The shipped
+            # Dockerfile is unchanged.
+            echo "::warning::default Ubuntu mirrors unreachable; retrying build via azure.archive.ubuntu.com"
+            sed '/^RUN apt-get update/i RUN sed -i "s#//archive.ubuntu.com#//azure.archive.ubuntu.com#; s#//security.ubuntu.com#//azure.archive.ubuntu.com#" /etc/apt/sources.list.d/ubuntu.sources' container/Dockerfile > "$RUNNER_TEMP/Dockerfile.ci"
+            docker build -f "$RUNNER_TEMP/Dockerfile.ci" -t ollama-test container
+          fi
       - name: Verify Ollama child and actionable unavailable WebUI health
         run: |
           # Legacy v0.1.0 fixture: bind root owned by the workspace user, nested entries root-owned.
