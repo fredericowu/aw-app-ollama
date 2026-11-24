@@ -28,7 +28,12 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          # The image ref lives in the tekflox package namespace, which is not
+          # linked to this (transferred) repo, so GITHUB_TOKEN gets
+          # "permission_denied: The requested installation does not exist".
+          # GHCR_PAT (write:packages on ghcr.io/tekflox/aw-app-ollama) is used
+          # when set; GITHUB_TOKEN stays as the fallback.
+          password: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: container
